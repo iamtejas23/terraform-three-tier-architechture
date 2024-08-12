@@ -197,7 +197,7 @@ resource "aws_db_instance" "default" {
   multi_az               = false
   db_name                = "mydb"
   username               = "Tejas"
-  password               = "Tejas01"
+  password               = "Tejasmanets01"
   skip_final_snapshot    = true
   vpc_security_group_ids = [aws_security_group.database-sg.id]
 }
