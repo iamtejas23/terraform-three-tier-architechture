@@ -23,16 +23,13 @@ provider "aws" {
 }
 
 resource "aws_s3_bucket" "state" {
-  bucket = var.state_bucket_name
+  bucket        = var.state_bucket_name
+  force_destroy = true
 
   tags = {
     Name      = var.state_bucket_name
     ManagedBy = "Terraform"
     Purpose   = "terraform-remote-state"
-  }
-
-  lifecycle {
-    prevent_destroy = true
   }
 }
 
