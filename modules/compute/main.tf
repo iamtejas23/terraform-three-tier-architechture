@@ -174,6 +174,10 @@ resource "aws_autoscaling_group" "app" {
       propagate_at_launch = true
     }
   }
+
+  timeouts {
+    delete = "15m"
+  }
 }
 
 # ── Auto Scaling Policies ─────────────────────────────────────────────────────

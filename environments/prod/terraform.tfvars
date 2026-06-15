@@ -10,7 +10,7 @@ public_subnet_cidrs      = ["10.1.1.0/24", "10.1.2.0/24"]
 private_app_subnet_cidrs = ["10.1.11.0/24", "10.1.12.0/24"]
 private_db_subnet_cidrs  = ["10.1.21.0/24", "10.1.22.0/24"]
 
-alb_deletion_protection = true
+alb_deletion_protection = false
 
 # Compute — Amazon Linux 2023 us-east-1 (verify latest AMI before apply)
 ami_id        = "ami-0230bd60aa48260c6"

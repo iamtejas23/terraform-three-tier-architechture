@@ -65,6 +65,12 @@ resource "aws_subnet" "private_db" {
 resource "aws_internet_gateway" "this" {
   vpc_id = aws_vpc.this.id
   tags   = merge(var.tags, { Name = "${local.name_prefix}-igw" })
+
+  # NAT GW ENIs can take 10-15 min to release after NAT GW deletion;
+  # give the IGW enough time to detach rather than timing out mid-destroy.
+  timeouts {
+    delete = "30m"
+  }
 }
 
 # ── NAT Gateways — one per AZ for high availability ──────────────────────────
@@ -81,6 +87,11 @@ resource "aws_nat_gateway" "this" {
   subnet_id     = aws_subnet.public[count.index].id
   depends_on    = [aws_internet_gateway.this]
   tags          = merge(var.tags, { Name = "${local.name_prefix}-nat-${var.availability_zones[count.index]}" })
+
+  timeouts {
+    create = "10m"
+    delete = "30m"
+  }
 }
 
 # ── Route tables ──────────────────────────────────────────────────────────────

@@ -38,8 +38,9 @@ data "aws_caller_identity" "current" {}
 # ── App Artifacts Bucket ──────────────────────────────────────────────────────
 # Stores the packaged app tarball that EC2 user-data downloads on boot.
 resource "aws_s3_bucket" "app_artifacts" {
-  bucket = "${var.project}-${var.environment}-artifacts-${data.aws_caller_identity.current.account_id}"
-  tags   = local.common_tags
+  bucket        = "${var.project}-${var.environment}-artifacts-${data.aws_caller_identity.current.account_id}"
+  force_destroy = true
+  tags          = local.common_tags
 }
 
 resource "aws_s3_bucket_versioning" "app_artifacts" {

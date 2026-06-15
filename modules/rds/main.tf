@@ -36,7 +36,7 @@ resource "random_password" "db" {
 }
 
 resource "aws_secretsmanager_secret" "db" {
-  name                    = "${local.name_prefix}/rds/credentials"
+  name_prefix             = "${local.name_prefix}/rds/credentials-"
   description             = "RDS credentials for ${local.name_prefix}"
   kms_key_id              = aws_kms_key.rds.id
   recovery_window_in_days = var.secret_recovery_window_days
@@ -68,7 +68,7 @@ resource "aws_db_subnet_group" "this" {
 
 # ── Parameter Group ───────────────────────────────────────────────────────────
 resource "aws_db_parameter_group" "this" {
-  name        = "${local.name_prefix}-mysql8"
+  name_prefix = "${local.name_prefix}-mysql8-"
   family      = "mysql8.0"
   description = "${local.name_prefix} MySQL 8 parameter group"
 
@@ -93,6 +93,10 @@ resource "aws_db_parameter_group" "this" {
   }
 
   tags = merge(var.tags, { Name = "${local.name_prefix}-mysql8-pg" })
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # ── Enhanced Monitoring Role ──────────────────────────────────────────────────
