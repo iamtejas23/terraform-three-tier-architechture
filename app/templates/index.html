@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Three-Tier App</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border-bottom: 1px solid #334155;
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 { font-size: 1.4rem; font-weight: 700; color: #f8fafc; letter-spacing: -0.3px; }
+    header h1 span { color: #38bdf8; }
+
+    .env-badge {
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .env-prod { background: #dc2626; color: #fff; }
+    .env-dev  { background: #16a34a; color: #fff; }
+    .env-local{ background: #7c3aed; color: #fff; }
+
+    /* ── Layout ── */
+    main { max-width: 820px; margin: 40px auto; padding: 0 20px; }
+
+    /* ── Cards ── */
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 28px;
+      margin-bottom: 24px;
+    }
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 20px;
+    }
+
+    /* ── Error banner ── */
+    .error-banner {
+      background: #450a0a;
+      border: 1px solid #dc2626;
+      border-radius: 8px;
+      padding: 14px 18px;
+      color: #fca5a5;
+      font-size: 0.9rem;
+      margin-bottom: 24px;
+    }
+
+    /* ── Add item form ── */
+    .add-form {
+      display: flex;
+      gap: 10px;
+    }
+    .add-form input[type="text"] {
+      flex: 1;
+      background: #0f172a;
+      border: 1px solid #475569;
+      border-radius: 8px;
+      color: #f1f5f9;
+      font-size: 0.95rem;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .add-form input[type="text"]:focus { border-color: #38bdf8; }
+    .add-form input[type="text"]::placeholder { color: #64748b; }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn:hover  { opacity: 0.85; }
+    .btn:active { transform: scale(0.97); }
+
+    .btn-primary { background: #0ea5e9; color: #fff; }
+    .btn-danger  { background: transparent; border: 1px solid #ef4444; color: #ef4444;
+                   padding: 5px 12px; font-size: 0.8rem; border-radius: 6px; }
+    .btn-danger:hover { background: #ef4444; color: #fff; opacity: 1; }
+
+    /* ── Stats row ── */
+    .stats {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .stat {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 12px 18px;
+      min-width: 110px;
+      text-align: center;
+    }
+    .stat .num { font-size: 1.8rem; font-weight: 700; color: #38bdf8; line-height: 1; }
+    .stat .lbl { font-size: 0.72rem; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    thead tr { border-bottom: 1px solid #334155; }
+    thead th {
+      text-align: left;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 0 12px 12px;
+    }
+    tbody tr {
+      border-bottom: 1px solid #1e293b;
+      transition: background 0.15s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #0f172a; }
+    tbody td { padding: 13px 12px; font-size: 0.92rem; color: #cbd5e1; vertical-align: middle; }
+    tbody td:first-child { color: #475569; font-size: 0.8rem; font-family: monospace; }
+    tbody td:nth-child(2) { color: #f1f5f9; font-weight: 500; }
+    tbody td:last-child { text-align: right; }
+
+    .timestamp { font-size: 0.78rem; color: #475569; font-family: monospace; }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 20px;
+      color: #475569;
+    }
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .empty-state p { font-size: 0.9rem; }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 32px 20px;
+      color: #334155;
+      font-size: 0.78rem;
+    }
+    footer a { color: #475569; text-decoration: none; }
+    footer a:hover { color: #94a3b8; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Three<span>Tier</span> App</h1>
+  <span class="env-badge env-{{ env }}">{{ env }}</span>
+</header>
+
+<main>
+
+  {% if error %}
+  <div class="error-banner">
+    <strong>DB Error:</strong> {{ error }}
+  </div>
+  {% endif %}
+
+  <!-- ── Add item ── -->
+  <div class="card">
+    <h2>Add Item</h2>
+    <form class="add-form" method="POST" action="/items">
+      <input
+        type="text"
+        name="name"
+        placeholder="Enter item name..."
+        maxlength="255"
+        required
+        autofocus
+      />
+      <button type="submit" class="btn btn-primary">+ Add</button>
+    </form>
+  </div>
+
+  <!-- ── Items table ── -->
+  <div class="card">
+    <h2>Items in Database</h2>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="num">{{ items | length }}</div>
+        <div class="lbl">Total Rows</div>
+      </div>
+    </div>
+
+    {% if items %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Created At</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          <tr>
+            <td>#{{ item.id }}</td>
+            <td>{{ item.name }}</td>
+            <td><span class="timestamp">{{ item.created_at }}</span></td>
+            <td>
+              <form method="POST" action="/items/{{ item.id }}/delete"
+                    onsubmit="return confirm('Delete \'{{ item.name }}\'?')">
+                <button type="submit" class="btn btn-danger">Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="icon">📭</div>
+      <p>No items yet. Add one above or hit <a href="/db/init">/db/init</a> to seed sample data.</p>
+    </div>
+    {% endif %}
+  </div>
+
+</main>
+
+<footer>
+  Three-Tier AWS &nbsp;|&nbsp;
+  <a href="/health">/health</a> &nbsp;|&nbsp;
+  <a href="/api/items">/api/items</a> &nbsp;|&nbsp;
+  <a href="/db/init">/db/init</a>
+</footer>
+
+</body>
+</html>

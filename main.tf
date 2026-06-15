@@ -197,7 +197,7 @@ resource "aws_db_instance" "default" {
   multi_az               = false
   db_name                = "mydb"
   username               = "Tejas"
-  password               = "Tejasmanets01"
+  password               = "REPLACE_BEFORE_USE"  # legacy file — use environments/ instead
   skip_final_snapshot    = true
   vpc_security_group_ids = [aws_security_group.database-sg.id]
 }

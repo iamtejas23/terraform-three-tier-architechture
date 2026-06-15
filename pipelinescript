@@ -1,36 +1,182 @@
 pipeline {
-    agent any 
+    agent any
+
+    parameters {
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['dev', 'prod'],
+            description: 'Target environment'
+        )
+        choice(
+            name: 'ACTION',
+            choices: ['plan', 'apply', 'destroy', 'deploy'],
+            description: 'plan/apply/destroy = Terraform. deploy = push app code to running instances via SSM (no infra change).'
+        )
+        string(
+            name: 'ASG_NAME',
+            defaultValue: '',
+            description: 'Auto Scaling Group name — filled automatically by Terraform trigger, or enter manually for deploy action.'
+        )
+    }
 
     environment {
         AWS_ACCESS_KEY_ID     = credentials('accesskey')
         AWS_SECRET_ACCESS_KEY = credentials('secretkey')
+        AWS_DEFAULT_REGION    = 'us-east-1'
+        TF_DIR                = "environments/${params.ENVIRONMENT}"
+        TF_IN_AUTOMATION      = '1'
     }
-    
+
     stages {
-        stage('checkout') {
+        stage('Checkout') {
             steps {
-                git 'https://github.com/devopsbyraham/terraform-project.git'
+                git branch: 'main', url: 'https://github.com/iamtejas23/terraform-three-tier-architechture.git'
             }
         }
-        stage('init') {
+
+        // ── Terraform stages (plan / apply / destroy) ─────────────────────
+        stage('TF Init') {
+            when { expression { params.ACTION != 'deploy' } }
             steps {
-                sh 'terraform init'
+                sh "terraform -chdir=${TF_DIR} init -input=false -reconfigure"
             }
         }
-        stage('validate') {
+
+        stage('TF Validate') {
+            when { expression { params.ACTION != 'deploy' } }
             steps {
-                sh 'terraform validate'                
+                sh "terraform -chdir=${TF_DIR} validate"
             }
         }
-        stage('plan') {
+
+        stage('TF Plan') {
+            when { expression { params.ACTION != 'deploy' } }
             steps {
-                sh 'terraform plan'
+                sh """
+                    terraform -chdir=${TF_DIR} plan \
+                        -var-file=terraform.tfvars \
+                        -out=tfplan \
+                        -input=false
+                """
             }
         }
-        stage('action') {
+
+        stage('TF Apply') {
+            when { expression { params.ACTION == 'apply' } }
             steps {
-                sh 'terraform $action --auto-approve'
+                sh "terraform -chdir=${TF_DIR} apply -input=false -auto-approve tfplan"
             }
+        }
+
+        stage('TF Destroy') {
+            when { expression { params.ACTION == 'destroy' } }
+            steps {
+                input message: "Destroy ${params.ENVIRONMENT}? This is irreversible.", ok: 'Yes, destroy it'
+                sh """
+                    terraform -chdir=${TF_DIR} destroy \
+                        -var-file=terraform.tfvars \
+                        -input=false \
+                        -auto-approve
+                """
+            }
+        }
+
+        // ── Deploy stage — SSM rolling app update (no Terraform needed) ───
+        // Triggered automatically by Terraform null_resource when app/ changes.
+        stage('Deploy App via SSM') {
+            when { expression { params.ACTION == 'deploy' } }
+            steps {
+                script {
+                    def asgName = params.ASG_NAME?.trim()
+                    if (!asgName) {
+                        error "ASG_NAME is required for the deploy action."
+                    }
+
+                    // Resolve S3 bucket name from Terraform output (or hardcode if known)
+                    def bucket = sh(
+                        script: "terraform -chdir=${TF_DIR} output -raw app_artifacts_bucket 2>/dev/null || echo ''",
+                        returnStdout: true
+                    ).trim()
+
+                    // Package and push fresh app artifact to S3
+                    sh """
+                        tar -czf /tmp/app-deploy.tar.gz -C app .
+                        aws s3 cp /tmp/app-deploy.tar.gz \
+                            s3://${bucket}/app/app-latest.tar.gz \
+                            --region ${AWS_DEFAULT_REGION}
+                        echo "Uploaded app to s3://${bucket}/app/app-latest.tar.gz"
+                    """
+
+                    // SSM Run Command — update all instances in the ASG in parallel
+                    def commandId = sh(
+                        script: """
+                            aws ssm send-command \
+                                --document-name "AWS-RunShellScript" \
+                                --targets "Key=tag:aws:autoscaling:groupName,Values=${asgName}" \
+                                --parameters 'commands=[
+                                    "aws s3 cp s3://${bucket}/app/app-latest.tar.gz /tmp/app.tar.gz",
+                                    "tar -xzf /tmp/app.tar.gz -C /opt/app",
+                                    "chown -R appuser:appuser /opt/app",
+                                    "pip3 install -q -r /opt/app/requirements.txt",
+                                    "systemctl restart app",
+                                    "sleep 5 && curl -sf http://localhost:8080/health && echo OK"
+                                ]' \
+                                --timeout-seconds 300 \
+                                --region ${AWS_DEFAULT_REGION} \
+                                --query "Command.CommandId" \
+                                --output text
+                        """,
+                        returnStdout: true
+                    ).trim()
+
+                    echo "SSM Command ID: ${commandId}"
+
+                    // Poll until the command finishes
+                    timeout(time: 10, unit: 'MINUTES') {
+                        waitUntil {
+                            def status = sh(
+                                script: """
+                                    aws ssm list-command-invocations \
+                                        --command-id ${commandId} \
+                                        --details \
+                                        --region ${AWS_DEFAULT_REGION} \
+                                        --query "CommandInvocations[*].Status" \
+                                        --output text
+                                """,
+                                returnStdout: true
+                            ).trim()
+                            echo "SSM status: ${status}"
+                            return !status.contains('InProgress') && !status.contains('Pending')
+                        }
+                    }
+
+                    // Fail build if any invocation failed
+                    sh """
+                        FAILED=\$(aws ssm list-command-invocations \
+                            --command-id ${commandId} \
+                            --region ${AWS_DEFAULT_REGION} \
+                            --query "CommandInvocations[?Status=='Failed'].InstanceId" \
+                            --output text)
+                        if [ -n "\$FAILED" ]; then
+                            echo "Failed on instances: \$FAILED"
+                            exit 1
+                        fi
+                        echo "All instances updated successfully."
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            echo "SUCCESS: ${params.ACTION} on ${params.ENVIRONMENT} completed."
+        }
+        failure {
+            echo "FAILURE: ${params.ACTION} on ${params.ENVIRONMENT} failed."
         }
     }
 }
